@@ -1,0 +1,1 @@
+arm-none-linux-gnueabi-gcc -o button_led invoke_button_led_fork_buzzer.c -static
