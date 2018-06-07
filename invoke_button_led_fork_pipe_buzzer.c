@@ -17,9 +17,9 @@ int main()
 	unsigned int led_status[2] = {0};	//两个led状态
 	int pipes[2],rc;		//管道
 	pid_t pid;		//fork返回值	
-	int key_value = 0;		//管道读取键值
+	unsigned char key_value[2] = {0};		//管道读取键值
 
-/*O_RDWR只读打开,O_NDELAY非阻塞方式*/	
+	/*O_RDWR只读打开,O_NDELAY非阻塞方式*/	
 	if((fd_button = open(read_key,O_RDWR|O_NDELAY))<0){
 		printf("open %s failed\n",read_key);
 		return -1;
@@ -37,7 +37,7 @@ int main()
 	
 	printf("APP open %s success!\n",read_key);
 	
-	ioctl(fd_led,1,1);
+	ioctl(fd_led,1,1);		
 	
 	rc = pipe(pipes);	//创建管道                 
 	if(rc == -1){
@@ -45,45 +45,52 @@ int main()
 		return -1;;
 	}
 	
+	pid = fork();	//创建进程
+	
+	if(pid < 0)
+	{
+		perror("\nfork\n");
+		exit(1);
+	}
+	if(pid == 0)	//子进程
+	{
+		close(pipes[1]);	//由于此函数只负责读，因此将写描述关闭(资源宝贵)
+		while(1)
+		{	
+			while( (rc = read(pipes[0],key_value,2)) > 0 ){ //阻塞，等待从管道读取数据
+				if(key_value[0])
+				{
+					ioctl(fd_buzzer,1,0);		//蜂鸣器响
+					sleep(1);
+					ioctl(fd_buzzer,0,0);
+				}
+				if(key_value[1]){
+					printf("child over receive\n");
+					close(pipes[0]);
+					printf("child over\n");
+					exit(0);
+				}
+			}
+		}	
+	}
+	
+	close(pipes[0]);  	//关闭读描述字
 	while(1){
 		read(fd_button,buffer,sizeof(buffer));
-		//printf("duqujianzhi");
+		rc = write( pipes[1], buffer, 2);	//写入管道
+		if( rc == -1 ){
+			perror("Parent: write");
+			close(pipes[1]);
+		}
 		if(buffer[0]){			
-			pid = fork();	//创建进程 
-
-			switch(pid){
-			case -1:
-				perror("\nfork\n");
-				exit(1);
-			case 0:	 
-				printf("jinru zijincheng");
-				close(pipes[1]);	//由于此函数只负责读，因此将写描述关闭(资源宝贵)
-				printf("jinru zijincheng");		//阻塞，等待从管道读取数据
-				while( (rc = read(pipes[0],&key_value,1)) > 0 ){ 
-					if(key_value)
-					{
-						printf("%d",(key_value + 1));
-						ioctl(fd_buzzer,1,0);		//蜂鸣器响
-						sleep(1);
-						ioctl(fd_buzzer,0,0);
-					}
-				}
-			default:
-			printf("jinru fujincheng");
-				close(pipes[0]);  	//关闭读描述字
-printf("jinru fujincheng");				
-				rc = write( pipes[1], &buffer[0], 1);	//写入管道
-				if( rc == -1 ){
-					perror("Parent: write");
-					close(pipes[1]);
-				}
-				ioctl(fd_led,1,0);		//led亮
-				sleep(1);
-				ioctl(fd_led,0,0);
-				wait(NULL);	
-			}
+			ioctl(fd_led,1,0);		//led亮
+			sleep(1);
+			ioctl(fd_led,0,0);
 		}
 		if(buffer[1]){
+			printf("over key\n");
+			wait(NULL);
+			printf("over\n");
 			ioctl(fd_led,0,1);
 			exit(0);
 		}		
