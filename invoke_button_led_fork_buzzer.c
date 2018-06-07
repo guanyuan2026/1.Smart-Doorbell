@@ -47,6 +47,7 @@ int main()
 				ioctl(fd_buzzer,1,0);	//·äÃùÆ÷Ïì
 				sleep(1);
 				ioctl(fd_buzzer,0,0);
+				exit(0);
 			default:					//¸¸½ø³Ì
 				ioctl(fd_led,1,0);		//ledÁÁ
 				sleep(1);
